@@ -34,8 +34,8 @@ def reconstruct(config, model, dataset, num_images=100):
         os.mkdir(os.path.join(config['train_params']['task_name'], config['train_params']['output_train_dir']))
     
     idxs = torch.randint(0, len(dataset) - 1, (num_images,))
-    ims = torch.cat([dataset[idx][0][None, :] for idx in idxs]).float()
-    labels = torch.cat([dataset[idx][1][None] for idx in idxs]).long()
+    ims = torch.cat([dataset[idx][0][None, :] for idx in idxs]).float().to(device)
+    labels = torch.cat([dataset[idx][1][None] for idx in idxs]).long().to(device)
     
     output = model(ims, labels)
     generated_im = output['image']
@@ -132,9 +132,9 @@ def visualize_interpolation(config, model, dataset, interpolation_steps=500, sav
         labels = (torch.ones((1,)).long().to(device) * label_val).repeat((2))
     else:
         labels = None
-    ims = torch.cat([dataset[idx][0][None, :] for idx in idxs]).float()
+    ims = torch.cat([dataset[idx][0][None, :] for idx in idxs]).float().to(device)
     means = model(ims, labels)['mean']
-    factors = torch.linspace(0, 1.0, steps=interpolation_steps)
+    factors = torch.linspace(0, 1.0, steps=interpolation_steps).to(device)
     means_start = means[0]
     means_end = means[1]
     if model.config['conditional']:
@@ -176,7 +176,7 @@ def visualize_manifold(config, model):
         xs, ys = torch.meshgrid([xs, ys])
         xs = xs.reshape(-1, 1)
         ys = ys.reshape(-1, 1)
-        zs = torch.cat([xs, ys], dim=-1)
+        zs = torch.cat([xs, ys], dim=-1).to(device)
         if model.latent_dim != 2:
             if not os.path.exists(os.path.join(config['train_params']['task_name'], 'pca_matrix.pkl')):
                 print('Latent dimension > 2 but no pca info available. '
