@@ -93,7 +93,8 @@ def train(args):
                                    num_workers=0)
     num_epochs = config['train_params']['epochs']
     optimizer = Adam(model.parameters(), lr=config['train_params']['lr'])
-    scheduler = ReduceLROnPlateau(optimizer, factor=0.5, patience=1, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, factor=0.5, patience=1)
+
     criterion = {
         'l1': torch.nn.L1Loss(),
         'l2': torch.nn.MSELoss()

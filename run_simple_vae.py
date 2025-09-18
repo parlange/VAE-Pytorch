@@ -121,11 +121,13 @@ def train_vae():
     idxs = torch.randint(0, len(mnist_test)-1, (100, ))
     ims = torch.cat([mnist_test[idx][0][None, :] for idx in idxs]).float()
     
-    _, _, generated_im = model(ims)
+    #_, _, generated_im = model(ims)
+    _, _, generated_im = model(ims.to(device))
     
     ims = (ims + 1)/ 2
     generated_im = 1- (generated_im + 1) / 2
-    out = torch.hstack([ims, generated_im])
+    out = torch.hstack([ims, generated_im.cpu()])
+
     output = rearrange(out, 'b c h w -> b () h (c w)')
     grid = torchvision.utils.make_grid(output, nrow=10)
     img = torchvision.transforms.ToPILImage()(grid)
