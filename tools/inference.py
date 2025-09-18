@@ -76,7 +76,9 @@ def visualize_latent_space(config, model, data_loader, save_fig_path):
     
     labels = torch.cat(labels, dim=0).reshape(-1)
     means = torch.cat(means, dim=0)
-    if model.latent_dim != 2:
+    # Handle DataParallel wrapper
+    model_attr = model.module if hasattr(model, 'module') else model
+    if model_attr.latent_dim != 2:
         print('Latent dimension > 2 and hence projecting')
         U, _, V = torch.pca_lowrank(means, center=True, niter=2)
         proj_means = torch.matmul(means, V[:, :2])
@@ -126,9 +128,12 @@ def visualize_interpolation(config, model, dataset, interpolation_steps=500, sav
                           config['train_params']['output_train_dir'],
                           save_dir))
     
+    # Handle DataParallel wrapper
+    model_attr = model.module if hasattr(model, 'module') else model
+    
     idxs = torch.randint(0, len(dataset)-1, (2,))
-    if model.config['conditional']:
-        label_val = torch.randint(0, 9, (1,))
+    if model_attr.config['conditional']:
+        label_val = torch.randint(0, 9, (1,)).to(device)
         labels = (torch.ones((1,)).long().to(device) * label_val).repeat((2))
     else:
         labels = None
@@ -137,8 +142,8 @@ def visualize_interpolation(config, model, dataset, interpolation_steps=500, sav
     factors = torch.linspace(0, 1.0, steps=interpolation_steps).to(device)
     means_start = means[0]
     means_end = means[1]
-    if model.config['conditional']:
-        label_val = torch.randint(0, 9, (1,))
+    if model_attr.config['conditional']:
+        label_val = torch.randint(0, 9, (1,)).to(device)
         labels = (torch.ones((1,)).long().to(device) * label_val).repeat((interpolation_steps))
     else:
         labels = None
@@ -160,11 +165,14 @@ def visualize_manifold(config, model):
             os.path.join(config['train_params']['task_name'], config['train_params']['output_train_dir'])):
         os.mkdir(os.path.join(config['train_params']['task_name'], config['train_params']['output_train_dir']))
     
+    # Handle DataParallel wrapper
+    model_attr = model.module if hasattr(model, 'module') else model
+    
     # For conditional model we can generate all numbers for all points in the space.
     # This because the condition introduces the variance even if the point (z) is the same
     # But for non-conditional only one output is possible for one z hence progress bar range is 1
-    if model.config['conditional']:
-        pbar_range = model.num_classes
+    if model_attr.config['conditional']:
+        pbar_range = model_attr.num_classes
     else:
         pbar_range = 1
     for label_val in tqdm(range(pbar_range)):
@@ -177,7 +185,7 @@ def visualize_manifold(config, model):
         xs = xs.reshape(-1, 1)
         ys = ys.reshape(-1, 1)
         zs = torch.cat([xs, ys], dim=-1).to(device)
-        if model.latent_dim != 2:
+        if model_attr.latent_dim != 2:
             if not os.path.exists(os.path.join(config['train_params']['task_name'], 'pca_matrix.pkl')):
                 print('Latent dimension > 2 but no pca info available. '
                       'Call visualize_latent_space first. Skipping visualize_manifold')
@@ -192,7 +200,7 @@ def visualize_manifold(config, model):
         img = torchvision.transforms.ToPILImage()(grid)
         img.save(os.path.join(config['train_params']['task_name'],
                               config['train_params']['output_train_dir'],
-                              'manifold_{}.png'.format(label_val) if model.config['conditional'] else 'manifold.png'))
+                              'manifold_{}.png'.format(label_val) if model_attr.config['conditional'] else 'manifold.png'))
 
 
 def inference(args):
@@ -204,8 +212,16 @@ def inference(args):
     print(config)
     
     model = get_model(config).to(device)
-    model.load_state_dict(torch.load(os.path.join(config['train_params']['task_name'],
-                                                  config['train_params']['ckpt_name']), map_location='cpu'))
+    
+    # Load state dict and handle DataParallel prefix
+    state_dict = torch.load(os.path.join(config['train_params']['task_name'],
+                                        config['train_params']['ckpt_name']), map_location='cpu')
+    
+    # Remove 'module.' prefix if present (from DataParallel training)
+    if list(state_dict.keys())[0].startswith('module.'):
+        state_dict = {k[7:]: v for k, v in state_dict.items()}
+    
+    model.load_state_dict(state_dict)
     model.eval()
     mnist = MnistDataset('test', 'data/test/images')
     mnist_loader = DataLoader(mnist, batch_size=config['train_params']['batch_size'], shuffle=True, num_workers=4)

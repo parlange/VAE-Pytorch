@@ -37,9 +37,9 @@ class MnistDataset(Dataset):
         label = self.labels[index]
         # Convert to 0 to 255 into -1 to 1
         im = 2*(im / 255) - 1
-        # Convert H,W,C into 1,C,H,W
-        im_tensor = torch.from_numpy(im)[None,:]
-        return im_tensor, torch.as_tensor(label)
+        # Convert H,W,C into 1,C,H,W and ensure float32
+        im_tensor = torch.from_numpy(im)[None,:].float()
+        return im_tensor, torch.as_tensor(label, dtype=torch.long)
         
 
 

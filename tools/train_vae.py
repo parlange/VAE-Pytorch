@@ -15,6 +15,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tools.inference import visualize_latent_space
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"Available GPUs: {torch.cuda.device_count()}")
+print(f"Using device: {device}")
 
 
 def train_for_one_epoch(epoch_idx, model, mnist_loader, optimizer, crtierion, config):
@@ -81,16 +83,23 @@ def train(args):
     np.random.seed(seed)
     random.seed(seed)
     if device == 'cuda':
-        torch.cuda.manual_seed_all(args.seed)
+        torch.cuda.manual_seed_all(seed)
     #######################################
     
     # Create the model and dataset
     model = get_model(config).to(device)
+    
+    # Use DataParallel for multi-GPU training
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
+        model = torch.nn.DataParallel(model)
+        print(f"Batch size: {config['train_params']['batch_size']} distributed across GPUs")
+    
     mnist = MnistDataset('train', config['train_params']['train_path'])
     mnist_test = MnistDataset('test', config['train_params']['test_path'])
-    mnist_loader = DataLoader(mnist, batch_size=config['train_params']['batch_size'], shuffle=True, num_workers=4)
+    mnist_loader = DataLoader(mnist, batch_size=config['train_params']['batch_size'], shuffle=True, num_workers=8)
     mnist_test_loader = DataLoader(mnist_test, batch_size=config['train_params']['batch_size'], shuffle=False,
-                                   num_workers=0)
+                                   num_workers=4)
     num_epochs = config['train_params']['epochs']
     optimizer = Adam(model.parameters(), lr=config['train_params']['lr'])
     scheduler = ReduceLROnPlateau(optimizer, factor=0.5, patience=1)

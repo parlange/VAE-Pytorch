@@ -1,16 +1,17 @@
 import torch
-import cv2
-import torchvision
 import torch.nn as nn
+from torch.optim import Adam
+from torch.utils.data import DataLoader
+from dataset.mnist_loader import MnistDataset
 import numpy as np
 from tqdm import tqdm
+import cv2
+import torchvision
 from einops import rearrange
-from torch.optim import Adam
-from dataset.mnist_loader import MnistDataset
-from torch.utils.data import DataLoader
-
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"Available GPUs: {torch.cuda.device_count()}")
+print(f"Using device: {device}")
 
 
 class VAEModel(nn.Module):
@@ -79,10 +80,21 @@ def train_vae():
     # Create the data set and the data loader
     mnist = MnistDataset('train', im_path='data/train/images')
     mnist_test = MnistDataset('test', im_path='data/test/images')
-    mnist_loader = DataLoader(mnist, batch_size=64, shuffle=True, num_workers=0)
+    
+    # Increase batch size to utilize more GPU memory
+    batch_size = 8192 if torch.cuda.device_count() > 1 else 4096
+    num_workers = 8  # Increase workers for faster data loading
+    
+    mnist_loader = DataLoader(mnist, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     
     # Instantiate the model
     model = VAEModel().to(device)
+    
+    # Use DataParallel for multi-GPU training
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
+        model = nn.DataParallel(model)
+        print(f"Batch size increased to {batch_size} to utilize multiple GPUs")
     
     # Specify training parameters
     num_epochs = 10
